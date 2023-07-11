@@ -1,0 +1,337 @@
+/*
+ * Copyright (c) 2020 Razeware LLC
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * Notwithstanding the foregoing, you may not use, copy, modify, merge, publish,
+ * distribute, sublicense, create a derivative work, and/or sell copies of the
+ * Software in any work that is designed, intended, or marketed for pedagogical or
+ * instructional purposes related to programming, coding, application development,
+ * or information technology.  Permission for such use, copying, modification,
+ * merger, publication, distribution, sublicensing, creation of derivative works,
+ * or sale is expressly withheld.
+ *
+ * This project and source code may use libraries or frameworks that are
+ * released under various Open-Source licenses. Use of those libraries and
+ * frameworks are governed by their own individual licenses.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+package com.raywenderlich.android.lememeify.ui.details
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Intent
+import android.content.IntentSender
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.os.Bundle
+import android.util.Log
+import android.view.*
+import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.exifinterface.media.ExifInterface
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Observer
+import com.bumptech.glide.Glide
+import com.bumptech.glide.signature.ObjectKey
+import com.raywenderlich.android.lememeify.R
+import com.raywenderlich.android.lememeify.Utils
+import com.raywenderlich.android.lememeify.databinding.FragmentDetailsBinding
+import com.raywenderlich.android.lememeify.model.Image
+import com.raywenderlich.android.lememeify.ui.ImageDetailAction
+import com.raywenderlich.android.lememeify.ui.ModificationType
+import java.io.IOException
+
+private const val KEYBOARD_HIDDEN_DELAY = 250L
+private const val REQUEST_PERMISSION_MEDIA_ACCESS = 300
+
+private const val TAG = "DetailsFragment"
+
+class DetailsFragment : Fragment() {
+
+  private val viewModel: DetailsViewModel by viewModels()
+
+  private lateinit var image: Image
+  private lateinit var binding: FragmentDetailsBinding
+
+  override fun onCreateView(inflater: LayoutInflater, group: ViewGroup?, state: Bundle?): View? {
+    setHasOptionsMenu(true)
+    viewModel.actions.observe(viewLifecycleOwner, Observer { handleAction(it) })
+    binding = FragmentDetailsBinding.inflate(inflater)
+    return binding.root
+  }
+
+  override fun onActivityCreated(savedInstanceState: Bundle?) {
+    super.onActivityCreated(savedInstanceState)
+
+    setupToolbar()
+
+    binding.tbDetails.setNavigationOnClickListener {
+      hideKeyboard {
+        Utils.navigateToMain(requireView())
+      }
+    }
+
+    image = requireArguments().get(Utils.EXTRA_IMAGE) as Image
+    Glide.with(requireContext())
+        .load(image.path)
+        .signature(ObjectKey(image.date))
+        .into(binding.ivImage)
+
+    binding.ivMeme.setOnClickListener {
+      showHideMemeBuilder()
+    }
+
+    binding.ivInfo.setOnClickListener {
+      hideKeyboard { showHideInfoImage() }
+    }
+
+    binding.ivDelete.setOnClickListener {
+      hideKeyboard { viewModel.deleteImage(image) }
+    }
+  }
+
+  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    super.onActivityResult(requestCode, resultCode, data)
+    TODO("Do nothing for now :]")
+  }
+
+  override fun onRequestPermissionsResult(code: Int, permission: Array<out String>,
+      result: IntArray) {
+    super.onRequestPermissionsResult(code, permission, result)
+    when (code) {
+      REQUEST_PERMISSION_MEDIA_ACCESS -> {
+        if (result[0] == PackageManager.PERMISSION_GRANTED) {
+          showHideInfoImage()
+        } else {
+          Toast.makeText(requireContext(),
+              R.string.toast_permission_media, Toast.LENGTH_SHORT).show()
+        }
+      }
+    }
+  }
+
+  override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+    super.onCreateOptionsMenu(menu, inflater)
+    inflater.inflate(R.menu.menu_details, menu)
+  }
+
+  override fun onOptionsItemSelected(item: MenuItem): Boolean {
+    return when (item.itemId) {
+      R.id.action_save -> {
+        updateMeme()
+        true
+      }
+      R.id.action_save_copy -> {
+        saveMeme(null)
+        true
+      }
+      else -> {
+        super.onOptionsItemSelected(item)
+      }
+    }
+  }
+
+  private fun handleAction(action: ImageDetailAction) =
+      when (action) {
+        ImageDetailAction.ImageDeleted -> imageChanged(getString(R.string.toast_deleted_all))
+        ImageDetailAction.ImageSaved -> imageChanged(getString(R.string.toast_image_saved))
+        ImageDetailAction.ImageUpdated -> imageChanged(getString(R.string.toast_image_updated))
+        is ImageDetailAction.ScopedPermissionRequired ->
+          requestScopedPermission(action.intentSender, action.forType)
+      }
+
+  private fun requestScopedPermission(intentSender: IntentSender, requestType: ModificationType) {
+    TODO("Handle case where file permission is required")
+  }
+
+  private fun imageChanged(toastMsg: String) {
+    Toast.makeText(requireContext(), toastMsg, Toast.LENGTH_LONG).show()
+    Utils.navigateToMain(requireView())
+  }
+
+  private fun setupToolbar() {
+    val appCompatActivity = activity as AppCompatActivity
+    appCompatActivity.setSupportActionBar(binding.tbDetails)
+    appCompatActivity.supportActionBar?.title = ""
+    appCompatActivity.supportActionBar?.setDisplayHomeAsUpEnabled(true)
+    appCompatActivity.supportActionBar?.setDisplayShowHomeEnabled(true)
+  }
+
+  private fun showHideMemeBuilder() {
+    if (binding.etTitle.visibility == View.VISIBLE) {
+      hideMemeBuilder()
+    } else {
+      hideInfoImage()
+      showMemeBuilder()
+    }
+  }
+
+  private fun showMemeBuilder() {
+    binding.etTitle.visibility = View.VISIBLE
+    binding.etSubtitle.visibility = View.VISIBLE
+
+    binding.etTitle.requestFocus()
+    showKeyboard()
+  }
+
+  private fun hideMemeBuilder() {
+    binding.etTitle.visibility = View.INVISIBLE
+    binding.etSubtitle.visibility = View.INVISIBLE
+  }
+
+  private fun updateMeme() {
+    hideKeyboard {
+      hideMemeBuilder()
+      viewModel.updateImage(image, createBitmap())
+    }
+  }
+
+  private fun saveMeme(path: String?) {
+    hideKeyboard {
+      hideMemeBuilder()
+      viewModel.saveImage(path, createBitmap())
+    }
+  }
+
+  private fun createBitmap(): Bitmap {
+    val bitmap: Bitmap = getBitmapFromView(binding.ivImage)
+    addTextToBitmap(bitmap, binding.etTitle.text.toString(), binding.etSubtitle.text.toString())
+    return bitmap
+  }
+
+  private fun getBitmapFromView(view: View): Bitmap {
+    val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+    view.draw(Canvas(bitmap))
+    return bitmap
+  }
+
+  private fun addTextToBitmap(viewBitmap: Bitmap, topText: String, bottomText: String) {
+    val bitmapWidth = viewBitmap.width
+    val pictureCanvas = Canvas(viewBitmap)
+
+    val textPaint = binding.etTitle.paint
+    textPaint.color = Color.WHITE
+    textPaint.textAlign = Paint.Align.CENTER
+
+    val textPaintOutline = Paint()
+    textPaintOutline.isAntiAlias = true
+    textPaintOutline.textSize = binding.etTitle.textSize
+    textPaintOutline.color = Color.BLACK
+    textPaintOutline.typeface = binding.etTitle.typeface
+    textPaintOutline.style = Paint.Style.STROKE
+    textPaintOutline.textAlign = Paint.Align.CENTER
+    textPaintOutline.strokeWidth = 10f
+
+    val xPos = (bitmapWidth / 2).toFloat()
+    var yPos = binding.etTitle.pivotY + binding.etTitle.height
+
+    pictureCanvas.drawText(topText, xPos, yPos, textPaintOutline)
+    pictureCanvas.drawText(topText, xPos, yPos, textPaint)
+
+    yPos = binding.ivImage.height.toFloat() - binding.etSubtitle.height
+
+    pictureCanvas.drawText(bottomText, xPos, yPos, textPaintOutline)
+    pictureCanvas.drawText(bottomText, xPos, yPos, textPaint)
+  }
+
+  @SuppressLint("SetTextI18n")
+  private fun showHideInfoImage() {
+    if (binding.llInfo.visibility == View.VISIBLE) {
+      hideInfoImage()
+    } else {
+      hideMemeBuilder()
+
+      if (Utils.hasMediaLocationPermission(requireContext())) {
+        setImageLocation()
+      } else {
+        Utils.requestMediaLocationPermission(
+            requireActivity(),
+            REQUEST_PERMISSION_MEDIA_ACCESS)
+        return
+      }
+
+      showInfoImage()
+
+      binding.tvDate.text = Utils.getFormattedDateFromMillis(image.date.toLong())
+      binding.tvPath.text = image.path
+      binding.tvSize.text = Utils.getFormattedKbFromBytes(requireContext(), image.size.toLong())
+
+      if (image.width == null || image.height == null) {
+        binding.tvDimensions.visibility = View.GONE
+
+      } else {
+        binding.tvDimensions.visibility = View.VISIBLE
+        binding.tvDimensions.text = getString(
+            R.string.image_dimensions, image.width, image.height)
+      }
+    }
+  }
+
+  private fun showInfoImage() {
+    binding.llInfo.visibility = View.VISIBLE
+  }
+
+  private fun hideInfoImage() {
+    binding.llInfo.visibility = View.INVISIBLE
+  }
+
+  private fun setImageLocation() {
+    try {
+      val exifInterface = ExifInterface(image.path)
+      val latLong = exifInterface.latLong
+      if (latLong == null) {
+        binding.tvLocation.visibility = View.GONE
+        return
+      }
+
+      binding.tvLocation.visibility = View.VISIBLE
+      binding.tvLocation.text = getString(R.string.image_location, latLong[0], latLong[1])
+    } catch (e: IOException) {
+      Log.d(TAG, "Unable to read exif data. Reason: ${e.message}")
+    }
+  }
+
+  private fun showKeyboard() {
+    val imm = activity?.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+    imm.showSoftInput(binding.etTitle, InputMethodManager.SHOW_FORCED)
+  }
+
+  private fun hideKeyboard(action: (() -> Unit)? = null) {
+    if (view == null) {
+      action?.invoke()
+
+    } else {
+      val imm = activity?.getSystemService(Activity.INPUT_METHOD_SERVICE) as InputMethodManager
+      imm.hideSoftInputFromWindow(requireView().windowToken, 0)
+
+      // We need to wait a couple of milliseconds for the keyboard to hide otherwise we won't
+      // have the image filling the entire screen.
+      if (action != null) {
+        requireView().postDelayed({ action() },
+            KEYBOARD_HIDDEN_DELAY)
+      }
+    }
+  }
+}

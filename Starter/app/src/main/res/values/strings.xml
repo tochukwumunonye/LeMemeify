@@ -1,0 +1,46 @@
+<resources>
+  <string name="app_name">Le Memeify</string>
+
+  <!-- Header -->
+  <string name="app_header">Le Memeify 👌</string>
+
+  <!-- Actions -->
+  <string name="action_save">Save</string>
+  <string name="action_save_copy">Save copy</string>
+  <string name="action_save_location">Save on location</string>
+  <string name="action_delete">Delete</string>
+
+  <!-- Details -->
+  <string name="image_details">Details</string>
+  <string name="image_kb">%d kB</string>
+  <string name="image_dimensions">%s x %s</string>
+  <string name="image_location">Coordinates: %.3f, %.3f</string>
+
+  <!-- Hint -->
+  <string name="hint_title">Title goes here</string>
+  <string name="hint_subtitle">And subtitle goes here</string>
+
+  <!-- Migration -->
+  <string name="migration_title">Migration</string>
+  <string name="migration_message">Do you want to migrate previously created files?</string>
+  <string name="migration_yes">Yes</string>
+  <string name="migration_no">Cancel</string>
+  <string name="migration_fail">You need to grant permissions to migrate files</string>
+
+  <!-- Toast -->
+  <string name="toast_deleted_all">Selected files removed</string>
+  <string name="toast_deleted_fail">You need to grant permissions to delete external files</string>
+  <string name="toast_permission_media">You need to grant media permissions to use the app</string>
+  <string name="toast_image_saved">Image saved successfully</string>
+  <string name="toast_image_updated">Image updated successfully</string>
+  <string name="toast_image_fail">You need to grant permissions to update external files</string>
+
+  <!-- Content description -->
+  <string name="description_nav_main">Main Fragment</string>
+  <string name="description_nav_details">Details Fragment</string>
+  <string name="description_image">Image from gallery</string>
+  <string name="description_selected">Selected image from gallery</string>
+  <string name="description_meme">Create meme</string>
+  <string name="description_info">See image info</string>
+  <string name="description_delete">Delete image</string>
+</resources>
